@@ -3,10 +3,16 @@ from datetime import datetime
 import sqlite3
 
 from flask import Flask, render_template, request, redirect, url_for, session
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-key")
-app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "admin123")
+
+DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "change-me-strong-password")
+app.config["ADMIN_PASSWORD_HASH"] = generate_password_hash(
+    DEFAULT_ADMIN_PASSWORD,
+    method="scrypt",
+)
 
 DB_NAME = "messages.db"
 
@@ -65,7 +71,7 @@ def submit():
 def login():
     if request.method == "POST":
         password = request.form.get("password", "")
-        if password == app.config["ADMIN_PASSWORD"]:
+        if check_password_hash(app.config["ADMIN_PASSWORD_HASH"], password):
             session["admin"] = True
             return redirect(url_for("admin"))
         return render_template("login.html", error="Incorrect password.")

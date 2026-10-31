@@ -105,7 +105,7 @@
 
     .actions {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
       flex-wrap: wrap;
       gap: 12px;
@@ -129,16 +129,6 @@
       filter: brightness(1.06);
     }
 
-    .secondary-link {
-      text-decoration: none;
-      color: var(--muted);
-      font-weight: 600;
-    }
-
-    .secondary-link:hover {
-      color: white;
-    }
-
     @media (max-width: 600px) {
       .container {
         padding: 20px 16px;
@@ -153,9 +143,8 @@
         width: 100%;
       }
 
-      button, .secondary-link {
+      button {
         width: 100%;
-        text-align: center;
       }
     }
   </style>
@@ -173,7 +162,6 @@
       <textarea name="message" placeholder="Type your message here..." required></textarea>
       <div class="actions">
         <button type="submit">Send anonymously</button>
-        <a class="secondary-link" href="/login">Admin</a>
       </div>
     </form>
   </div>
