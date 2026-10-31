@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Messages</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #f9fafb;
+      --muted: #cbd5e1;
+      --accent: #38bdf8;
+      --danger: #ef4444;
+      --border: #334155;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f172a 0%, #111827 50%, #1e293b 100%);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .home-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .home-link:hover {
+      color: white;
+    }
+
+    .card {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-2);
+      margin-bottom: 16px;
+    }
+
+    .message-text {
+      margin: 0 0 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 1rem;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    form {
+      margin: 0;
+    }
+
+    .delete-btn {
+      background: var(--danger);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .meta-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <h1>Messages</h1>
+      <a class="home-link" href="/">Back to form</a>
+    </div>
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="card">
+          <p class="message-text">{{ message["text"] }}</p>
+          <div class="meta-row">
+            <span>Received: {{ message["created_at"] }}</span>
+
+            <form method="POST" action="/delete/{{ message['id'] }}">
+              <button class="delete-btn" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">
+        No messages yet.
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>
