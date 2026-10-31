@@ -46,7 +46,6 @@ def init_db():
         conn.execute("ALTER TABLE messages ADD COLUMN read INTEGER NOT NULL DEFAULT 0")
     if "is_private" not in column_names:
         conn.execute("ALTER TABLE messages ADD COLUMN is_private INTEGER NOT NULL DEFAULT 1")
-
     conn.commit()
     conn.close()
 
@@ -133,7 +132,6 @@ def index():
 @app.route("/submit", methods=["POST"])
 def submit():
     message = request.form.get("message", "").strip()
-
     if message:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = get_db()
@@ -143,15 +141,17 @@ def submit():
         )
         conn.commit()
         conn.close()
-
     return redirect(url_for("index", sent="1"))
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if session.get("admin"):
+        return redirect(url_for("admin"))
+
     if request.method == "POST":
         password = request.form.get("password", "")
-        if check_password_hash(app.config["ADMIN_PASSWORD_HASH"], password):
+        if password and check_password_hash(app.config["ADMIN_PASSWORD_HASH"], password):
             session["admin"] = True
             return redirect(url_for("admin"))
         return render_template("login.html", error="Incorrect password.")
