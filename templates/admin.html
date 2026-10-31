@@ -3,17 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Messages</title>
+  <title>Messages Admin</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --panel: #111827;
+      --bg-1: #0f172a;
+      --bg-2: #111827;
+      --panel: rgba(15, 23, 42, 0.9);
       --panel-2: #1f2937;
-      --text: #f9fafb;
+      --text: #f8fafc;
       --muted: #cbd5e1;
       --accent: #38bdf8;
       --danger: #ef4444;
-      --border: #334155;
+      --warning: #f59e0b;
+      --success: #22c55e;
+      --border: rgba(148, 163, 184, 0.2);
+      --shadow: rgba(15, 23, 42, 0.45);
     }
 
     * { box-sizing: border-box; }
@@ -21,29 +25,64 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background: linear-gradient(135deg, #0f172a 0%, #111827 50%, #1e293b 100%);
+      background: linear-gradient(135deg, var(--bg-1), var(--bg-2), #1e293b);
       color: var(--text);
       font-family: Arial, Helvetica, sans-serif;
       padding: 24px;
     }
 
     .container {
-      max-width: 900px;
+      max-width: 1000px;
       margin: 0 auto;
-      background: rgba(17, 24, 39, 0.95);
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 18px;
+      border-radius: 22px;
+      box-shadow: 0 24px 60px var(--shadow);
       padding: 24px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
-    }
-
-    h1 {
-      margin-top: 0;
-      margin-bottom: 20px;
-      font-size: clamp(2rem, 4vw, 2.8rem);
     }
 
     .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 2.6rem);
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat {
+      flex: 1 1 180px;
+      padding: 16px 18px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    .stat-label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+    }
+
+    .action-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -52,27 +91,64 @@
       flex-wrap: wrap;
     }
 
-    .home-link {
-      color: var(--muted);
+    .links {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    a {
       text-decoration: none;
+    }
+
+    .btn {
+      appearance: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 700;
+      color: white;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, var(--danger), #dc2626);
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, var(--warning), #d97706);
+    }
+
+    .secondary {
+      color: var(--muted);
       font-weight: 600;
     }
 
-    .home-link:hover {
+    .secondary:hover {
       color: white;
     }
 
+    .messages {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
     .card {
-      padding: 16px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
       background: var(--panel-2);
-      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
     }
 
     .message-text {
       margin: 0 0 12px;
-      line-height: 1.6;
+      line-height: 1.7;
       white-space: pre-wrap;
       word-break: break-word;
       font-size: 1rem;
@@ -88,32 +164,24 @@
       font-size: 0.9rem;
     }
 
-    form {
-      margin: 0;
-    }
-
-    .delete-btn {
-      background: var(--danger);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
     .empty {
-      padding: 20px;
       text-align: center;
       color: var(--muted);
       border: 1px dashed var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
+      padding: 28px 20px;
+      background: rgba(31, 41, 55, 0.35);
     }
 
     @media (max-width: 600px) {
-      .meta-row {
+      .topbar, .action-row, .meta-row {
         flex-direction: column;
         align-items: flex-start;
+      }
+
+      .links, .btn, .secondary {
+        width: 100%;
+        text-align: center;
       }
     }
   </style>
@@ -121,26 +189,54 @@
 <body>
   <div class="container">
     <div class="topbar">
-      <h1>Messages</h1>
-      <a class="home-link" href="/">Back to form</a>
+      <h1>Message Center</h1>
+      <div class="links">
+        <a class="secondary" href="/">Home</a>
+        <form method="POST" action="/logout" style="display:inline; margin:0;">
+          <button class="btn btn-warning" type="submit">Logout</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-label">Total messages</span>
+        <span class="stat-value">{{ message_count }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Status</span>
+        <span class="stat-value" style="color: var(--success);">Online</span>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <div class="links">
+        <a class="btn btn-primary" href="/">New message</a>
+      </div>
+
+      <form method="POST" action="/clear-all" onsubmit="return confirm('Delete all messages?');">
+        <button class="btn btn-danger" type="submit">Delete all</button>
+      </form>
     </div>
 
     {% if messages %}
-      {% for message in messages %}
-        <div class="card">
-          <p class="message-text">{{ message["text"] }}</p>
-          <div class="meta-row">
-            <span>Received: {{ message["created_at"] }}</span>
+      <div class="messages">
+        {% for message in messages %}
+          <div class="card">
+            <p class="message-text">{{ message["text"] }}</p>
+            <div class="meta-row">
+              <span>Received: {{ message["created_at"] }}</span>
 
-            <form method="POST" action="/delete/{{ message['id'] }}">
-              <button class="delete-btn" type="submit">Delete</button>
-            </form>
+              <form method="POST" action="/delete/{{ message['id'] }}" onsubmit="return confirm('Delete this message?');">
+                <button class="btn btn-danger" type="submit">Delete</button>
+              </form>
+            </div>
           </div>
-        </div>
-      {% endfor %}
+        {% endfor %}
+      </div>
     {% else %}
       <div class="empty">
-        No messages yet.
+        No messages yet. When people submit, they will appear here.
       </div>
     {% endif %}
   </div>

@@ -1,8 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for
-import sqlite3
+import os
 from datetime import datetime
+import sqlite3
+
+from flask import Flask, render_template, request, redirect, url_for, session
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-key")
+app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 DB_NAME = "messages.db"
 
@@ -28,9 +32,16 @@ def init_db():
     conn.close()
 
 
+def get_message_count():
+    conn = get_db()
+    count = conn.execute("SELECT COUNT(*) AS total FROM messages").fetchone()["total"]
+    conn.close()
+    return count
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", message_count=get_message_count())
 
 
 @app.route("/submit", methods=["POST"])
@@ -50,18 +61,58 @@ def submit():
     return redirect(url_for("index"))
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if password == app.config["ADMIN_PASSWORD"]:
+            session["admin"] = True
+            return redirect(url_for("admin"))
+        return render_template("login.html", error="Incorrect password.")
+
+    return render_template("login.html", error=None)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.pop("admin", None)
+    return redirect(url_for("login"))
+
+
 @app.route("/admin")
 def admin():
+    if not session.get("admin"):
+        return redirect(url_for("login"))
+
     conn = get_db()
     messages = conn.execute("SELECT * FROM messages ORDER BY id DESC").fetchall()
     conn.close()
-    return render_template("admin.html", messages=messages)
+    return render_template(
+        "admin.html",
+        messages=messages,
+        message_count=len(messages),
+    )
 
 
 @app.route("/delete/<int:message_id>", methods=["POST"])
 def delete_message(message_id):
+    if not session.get("admin"):
+        return redirect(url_for("login"))
+
     conn = get_db()
     conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("admin"))
+
+
+@app.route("/clear-all", methods=["POST"])
+def clear_all_messages():
+    if not session.get("admin"):
+        return redirect(url_for("login"))
+
+    conn = get_db()
+    conn.execute("DELETE FROM messages")
     conn.commit()
     conn.close()
     return redirect(url_for("admin"))
