@@ -1,7 +1,7 @@
 import csv
 import os
-from datetime import datetime
 import sqlite3
+from datetime import datetime
 from io import StringIO
 
 from flask import Flask, render_template, request, redirect, url_for, session, Response
@@ -52,19 +52,21 @@ def init_db():
 
 def get_message_count():
     conn = get_db()
-    count = conn.execute("SELECT COUNT(*) AS total FROM messages WHERE is_private = 1").fetchone()["total"]
+    count = conn.execute(
+        "SELECT COUNT(*) AS total FROM messages WHERE is_private = 1"
+    ).fetchone()["total"]
     conn.close()
     return count
 
 
 def get_recent_messages(limit=5):
     conn = get_db()
-    messages = conn.execute(
+    rows = conn.execute(
         "SELECT * FROM messages WHERE is_private = 1 ORDER BY created_at DESC, id DESC LIMIT ?",
         (limit,),
     ).fetchall()
     conn.close()
-    return messages
+    return rows
 
 
 def normalize_sort(value):
@@ -77,8 +79,8 @@ def normalize_filter(value):
 
 def get_messages_for_admin(search="", sort="newest", read_filter="all"):
     query = "SELECT * FROM messages WHERE is_private = 1"
-    conditions = []
     params = []
+    conditions = []
 
     if search:
         conditions.append("text LIKE ?")
@@ -195,7 +197,10 @@ def toggle_read(message_id):
         return redirect(url_for("login"))
 
     conn = get_db()
-    row = conn.execute("SELECT read FROM messages WHERE id = ? AND is_private = 1", (message_id,)).fetchone()
+    row = conn.execute(
+        "SELECT read FROM messages WHERE id = ? AND is_private = 1",
+        (message_id,),
+    ).fetchone()
     if row is not None:
         conn.execute(
             "UPDATE messages SET read = ? WHERE id = ?",
@@ -244,7 +249,12 @@ def export_messages():
     writer = csv.writer(output)
     writer.writerow(["id", "text", "created_at", "read"])
     for row in rows:
-        writer.writerow([row["id"], row["text"], row["created_at"], "read" if row["read"] else "unread"])
+        writer.writerow([
+            row["id"],
+            row["text"],
+            row["created_at"],
+            "read" if row["read"] else "unread",
+        ])
 
     csv_data = output.getvalue()
     response = Response(csv_data, mimetype="text/csv")
