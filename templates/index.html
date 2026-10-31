@@ -1,169 +1,256 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Anonymous Messages</title>
-  <style>
-    :root {
-      --bg-1: #0f172a;
-      --bg-2: #111827;
-      --panel: rgba(15, 23, 42, 0.9);
-      --panel-2: #1f2937;
-      --text: #f8fafc;
-      --muted: #cbd5e1;
-      --accent: #38bdf8;
-      --accent-2: #a78bfa;
-      --success: #22c55e;
-      --border: rgba(148, 163, 184, 0.2);
-      --shadow: rgba(15, 23, 42, 0.45);
+import csv
+import os
+from datetime import datetime
+import sqlite3
+from io import StringIO
+
+from flask import Flask, render_template, request, redirect, url_for, session, Response
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-key")
+
+DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "change-me-strong-password")
+app.config["ADMIN_PASSWORD_HASH"] = generate_password_hash(
+    DEFAULT_ADMIN_PASSWORD,
+    method="scrypt",
+)
+
+DB_NAME = "messages.db"
+
+
+def get_db():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            read INTEGER NOT NULL DEFAULT 0,
+            is_private INTEGER NOT NULL DEFAULT 1
+        )
+        """
+    )
+    conn.commit()
+
+    columns = conn.execute("PRAGMA table_info(messages)").fetchall()
+    column_names = {col[1] for col in columns}
+    if "read" not in column_names:
+        conn.execute("ALTER TABLE messages ADD COLUMN read INTEGER NOT NULL DEFAULT 0")
+    if "is_private" not in column_names:
+        conn.execute("ALTER TABLE messages ADD COLUMN is_private INTEGER NOT NULL DEFAULT 1")
+    conn.commit()
+    conn.close()
+
+
+def get_message_count():
+    conn = get_db()
+    count = conn.execute("SELECT COUNT(*) AS total FROM messages").fetchone()["total"]
+    conn.close()
+    return count
+
+
+def get_recent_messages(limit=5):
+    conn = get_db()
+    messages = conn.execute(
+        "SELECT * FROM messages WHERE is_private = 1 ORDER BY created_at DESC, id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return messages
+
+
+def normalize_sort(value):
+    return value if value in {"newest", "oldest"} else "newest"
+
+
+def normalize_filter(value):
+    return value if value in {"all", "read", "unread"} else "all"
+
+
+def get_messages_for_admin(search="", sort="newest", read_filter="all"):
+    query = "SELECT * FROM messages WHERE is_private = 1"
+    conditions = []
+    params = []
+
+    if search:
+        conditions.append("text LIKE ?")
+        params.append(f"%{search}%")
+
+    if read_filter == "read":
+        conditions.append("read = ?")
+        params.append(1)
+    elif read_filter == "unread":
+        conditions.append("read = ?")
+        params.append(0)
+
+    if conditions:
+        query += " AND " + " AND ".join(conditions)
+
+    if sort == "oldest":
+        query += " ORDER BY created_at ASC, id ASC"
+    else:
+        query += " ORDER BY created_at DESC, id DESC"
+
+    conn = get_db()
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return rows
+
+
+def get_status_counts():
+    conn = get_db()
+    totals = conn.execute(
+        "SELECT COUNT(*) AS total, SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END) AS read_count, SUM(CASE WHEN read = 0 THEN 1 ELSE 0 END) AS unread_count FROM messages WHERE is_private = 1"
+    ).fetchone()
+    conn.close()
+    return {
+        "total": totals["total"] or 0,
+        "read": totals["read_count"] or 0,
+        "unread": totals["unread_count"] or 0,
     }
 
-    * { box-sizing: border-box; }
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: Arial, Helvetica, sans-serif;
-      background: linear-gradient(135deg, var(--bg-1), var(--bg-2), #1e293b);
-      color: var(--text);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 24px;
-    }
+@app.route("/")
+def index():
+    sent = request.args.get("sent") == "1"
+    return render_template(
+        "index.html",
+        message_count=get_message_count(),
+        recent_messages=get_recent_messages(5),
+        sent=sent,
+    )
 
-    .container {
-      width: min(760px, 100%);
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: 0 24px 60px var(--shadow);
-      padding: 28px;
-    }
 
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding-bottom: 18px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
+@app.route("/submit", methods=["POST"])
+def submit():
+    message = request.form.get("message", "").strip()
 
-    h1 {
-      margin: 0;
-      font-size: clamp(2rem, 5vw, 2.8rem);
-      letter-spacing: -0.04em;
-    }
+    if message:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO messages (text, created_at, read, is_private) VALUES (?, ?, 0, 1)",
+            (message, now),
+        )
+        conn.commit()
+        conn.close()
 
-    .count-pill {
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: white;
-      font-weight: bold;
-      border-radius: 999px;
-      padding: 10px 16px;
-      font-size: 0.9rem;
-      min-width: 120px;
-      text-align: center;
-      box-shadow: 0 8px 18px rgba(56, 189, 248, 0.3);
-    }
+    return redirect(url_for("index", sent="1"))
 
-    .subtitle {
-      margin: 0 0 24px;
-      color: var(--muted);
-      text-align: center;
-      font-size: 1rem;
-    }
 
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-    }
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if check_password_hash(app.config["ADMIN_PASSWORD_HASH"], password):
+            session["admin"] = True
+            return redirect(url_for("admin"))
+        return render_template("login.html", error="Incorrect password.")
 
-    textarea {
-      width: 100%;
-      min-height: 200px;
-      resize: vertical;
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px 18px;
-      font-size: 1rem;
-      outline: none;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
+    return render_template("login.html", error=None)
 
-    textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
-    }
 
-    .actions {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.pop("admin", None)
+    return redirect(url_for("login"))
 
-    button {
-      appearance: none;
-      border: none;
-      border-radius: 12px;
-      color: white;
-      background: linear-gradient(135deg, var(--accent), #0ea5e9);
-      font-weight: 700;
-      padding: 12px 18px;
-      cursor: pointer;
-      transition: transform 0.15s ease, filter 0.15s ease;
-      font-size: 1rem;
-    }
 
-    button:hover {
-      transform: translateY(-1px);
-      filter: brightness(1.06);
-    }
+@app.route("/admin")
+def admin():
+    if not session.get("admin"):
+        return redirect(url_for("login"))
 
-    @media (max-width: 600px) {
-      .container {
-        padding: 20px 16px;
-      }
+    search = request.args.get("search", "").strip()
+    sort = normalize_sort(request.args.get("sort"))
+    read_filter = normalize_filter(request.args.get("filter"))
 
-      .header, .actions {
-        flex-direction: column;
-        align-items: stretch;
-      }
+    messages = get_messages_for_admin(search, sort, read_filter)
+    status = get_status_counts()
 
-      .count-pill {
-        width: 100%;
-      }
+    return render_template(
+        "admin.html",
+        messages=messages,
+        message_count=status["total"],
+        read_count=status["read"],
+        unread_count=status["unread"],
+        search=search,
+        sort=sort,
+        filter=read_filter,
+    )
 
-      button {
-        width: 100%;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Anonymous Notes</h1>
-      <div class="count-pill">{{ message_count }} messages</div>
-    </div>
 
-    <p class="subtitle">Share something honest, kind, or random — no names needed.</p>
+@app.route("/toggle-read/<int:message_id>", methods=["POST"])
+def toggle_read(message_id):
+    if not session.get("admin"):
+        return redirect(url_for("login"))
 
-    <form method="POST" action="/submit">
-      <textarea name="message" placeholder="Type your message here..." required></textarea>
-      <div class="actions">
-        <button type="submit">Send anonymously</button>
-      </div>
-    </form>
-  </div>
-</body>
-</html>
+    conn = get_db()
+    row = conn.execute("SELECT read FROM messages WHERE id = ? AND is_private = 1", (message_id,)).fetchone()
+    if row is not None:
+        conn.execute(
+            "UPDATE messages SET read = ? WHERE id = ?",
+            (0 if row["read"] else 1, message_id),
+        )
+        conn.commit()
+    conn.close()
+    return redirect(request.referrer or url_for("admin"))
+
+
+@app.route("/delete/<int:message_id>", methods=["POST"])
+def delete_message(message_id):
+    if not session.get("admin"):
+        return redirect(url_for("login"))
+
+    conn = get_db()
+    conn.execute("DELETE FROM messages WHERE id = ? AND is_private = 1", (message_id,))
+    conn.commit()
+    conn.close()
+    return redirect(request.referrer or url_for("admin"))
+
+
+@app.route("/clear-all", methods=["POST"])
+def clear_all_messages():
+    if not session.get("admin"):
+        return redirect(url_for("login"))
+
+    conn = get_db()
+    conn.execute("DELETE FROM messages WHERE is_private = 1")
+    conn.commit()
+    conn.close()
+    return redirect(url_for("admin"))
+
+
+@app.route("/export")
+def export_messages():
+    if not session.get("admin"):
+        return redirect(url_for("login"))
+
+    search = request.args.get("search", "").strip()
+    sort = normalize_sort(request.args.get("sort"))
+    read_filter = normalize_filter(request.args.get("filter"))
+    rows = get_messages_for_admin(search, sort, read_filter)
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "text", "created_at", "read"])
+    for row in rows:
+        writer.writerow([row["id"], row["text"], row["created_at"], "read" if row["read"] else "unread"])
+
+    csv_data = output.getvalue()
+    response = Response(csv_data, mimetype="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=messages.csv"
+    return response
+
+
+if __name__ == "__main__":
+    init_db()
+    app.run(host="0.0.0.0", port=5000, debug=True)
